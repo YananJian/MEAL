@@ -19,7 +19,7 @@ import numpy as np
 
 from models import *
 from models import discriminator
-from utils import progress_bar, get_model
+from utils import get_model
 from loss import *
 
 # ================= Arugments ================ #
@@ -61,6 +61,9 @@ parser.add_argument('--momentum', type=float, default=0.9)
 parser.add_argument('--nesterov', type=bool, default=True)
 parser.add_argument('--lr_min', type=float, default=0)
 
+
+work_root_dir = os.environ["AML_JOB_OUTPUT_PATH"]
+data_dir = os.environ["AML_JOB_INPUT_PATH"]
 
 args = parser.parse_args()
 
@@ -128,16 +131,29 @@ transform_test = transforms.Compose([
     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
 ])
 
-trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform_train)
+if data_dir in ['', None]:
+    data_dir = './data'
+else:
+    ln_dir = "ln -s {} {}".format(data_dir, './data')
+    os.system(ln_dir)
+    os.system("ls data")
+
+if data_config['dataset'] == 'CIFAR10':
+    trainset = torchvision.datasets.CIFAR10(root=data_dir, train=True, download=True, transform=transform_train)
+elif data_config['dataset'] == 'IMAGENET':
+    trainset = torchvision.datasets.ImageNet(root=data_dir, train=True, download=False, transform=transform_train)
 
 if args.student == "densenet_cifar":
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=64, shuffle=True, num_workers=2)
     print("batch_size =", 64)
-
 else:
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=2)
 
-testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_test)
+if data_config['dataset'] == 'CIFAR10':
+    testset = torchvision.datasets.CIFAR10(root=data_dir, train=False, download=True, transform=transform_test)
+elif data_config['dataset'] == 'IMAGENET':
+    trainset = torchvision.datasets.ImageNet(root=data_dir, train=False, download=False, transform=transform_train)
+
 testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
 
 classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
@@ -261,7 +277,7 @@ def train(epoch):
         _, predicted = outputs[-1].max(1)
         correct += predicted.eq(targets).sum().item()
 
-        progress_bar(batch_idx, len(trainloader), 'Teacher: %s | Lr: %.4e | G_Loss: %.3f | D_Loss: %.3f | Acc: %.3f%% (%d/%d)'
+        print(batch_idx, len(trainloader), 'Teacher: %s | Lr: %.4e | G_Loss: %.3f | D_Loss: %.3f | Acc: %.3f%% (%d/%d)'
             % (teacher.__name__, scheduler.get_lr()[0], train_loss / (batch_idx + 1), discriminator_loss / (batch_idx + 1), 100. * correct / total, correct, total))
 
 
@@ -295,7 +311,9 @@ def test(epoch):
             _, predicted = outputs[-1].max(1)
             correct += predicted.eq(targets).sum().item()
 
-            progress_bar(batch_idx, len(testloader), 'Lr: %.4e | G_Loss: %.3f | D_Loss: %.3f | Acc: %.3f%% (%d/%d)'
+            #progress_bar(batch_idx, len(testloader), 'Lr: %.4e | G_Loss: %.3f | D_Loss: %.3f | Acc: %.3f%% (%d/%d)'
+            #    % (scheduler.get_lr()[0], test_loss / (batch_idx + 1), discriminator_loss / (batch_idx + 1), 100. * correct / total, correct, total))
+            print(batch_idx, len(testloader), 'Lr: %.4e | G_Loss: %.3f | D_Loss: %.3f | Acc: %.3f%% (%d/%d)'
                 % (scheduler.get_lr()[0], test_loss / (batch_idx + 1), discriminator_loss / (batch_idx + 1), 100. * correct / total, correct, total))
 
         best_acc = max(100. * correct / total, best_acc)
