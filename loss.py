@@ -47,8 +47,8 @@ class discriminatorLoss(nn.Module):
         batch_size = inputs[0].size(0)
         target = torch.FloatTensor([[1, 0] for _ in range(batch_size//2)] + [[0, 1] for _ in range(batch_size//2)])
         target = target.to(inputs[0].device)
-        outputs = self.models(inputs)
-        res = sum([self.eta[i] * self.loss(output, target) for i, output in enumerate(outputs)])
+        discriminator_outputs = self.models(inputs)
+        res = sum([self.eta[i] * self.loss(output, target) for i, output in enumerate(discriminator_outputs)])
         return res
 
 
